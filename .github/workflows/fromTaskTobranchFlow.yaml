@@ -21,13 +21,21 @@ jobs:
         run: |
           ISSUE_NUMBER="${{ env.issue_number }}"
           ISSUE_TITLE="${{ env.issue_title }}"
-          # Add '-' between issue number and title
-          BRANCH_NAME="${ISSUE_NUMBER} - ${ISSUE_TITLE// /_}"
-          BRANCH_NAME=$(echo $BRANCH_NAME | tr -d '[:punct:]')
+
+      # Combine issue number and title with '-'
+          BRANCH_NAME="${ISSUE_NUMBER}-${ISSUE_TITLE}"
+      
+      # Replace spaces with underscores and remove punctuation
+          BRANCH_NAME=$(echo "$BRANCH_NAME" | sed -e 's/ /_/g' -e 's/[[:punct:]]//g')
+
           echo "Branch Name: $BRANCH_NAME"
+
+      # Set BRANCH_NAME as an environment variable for later steps
           echo "BRANCH_NAME=${BRANCH_NAME}" >> $GITHUB_ENV
+      
           git checkout -b $BRANCH_NAME
           git push origin $BRANCH_NAME
+
 
       - name: Debug Branch Name
         run: |
