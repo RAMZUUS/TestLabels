@@ -1,0 +1,45 @@
+name: Manage Labels on Issue Creation
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  manage-labels:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Extract Issue Information
+        run: |
+          echo "issue_priority=${{ github.event.issue.labels | select(.name == 'priority') | firstOrDefault(.color) }}" >> $GITHUB_ENV
+          echo "issue_estimate=${{ github.event.issue.labels | select(.name == 'estimate') | firstOrDefault(.color) }}" >> $GITHUB_ENV
+
+      - name: Set Priority Label
+        run: |
+          ISSUE_PRIORITY="${{ env.issue_priority }}"
+          if [ -n "$ISSUE_PRIORITY" ]; then
+            echo "Priority Label: $ISSUE_PRIORITY"
+            echo "priority=${ISSUE_PRIORITY}" >> $GITHUB_ENV
+          else
+            echo "Priority label not found."
+          fi
+
+      - name: Set Estimate Label
+        run: |
+          ISSUE_ESTIMATE="${{ env.issue_estimate }}"
+          if [ -n "$ISSUE_ESTIMATE" ]; then
+            echo "Estimate Label: $ISSUE_ESTIMATE"
+            echo "estimate=${ISSUE_ESTIMATE}" >> $GITHUB_ENV
+          else
+            echo "Estimate label not found."
+          fi
+
+      - name: Add Labels to Issue
+        run: |
+          curl -X PATCH \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d "{\"labels\":[\"${{ env.priority }}\",\"${{ env.estimate }}\"]}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}"
