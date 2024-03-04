@@ -19,7 +19,6 @@ jobs:
 
       - name: Create Branch
         run: |
-          
           ISSUE_NUMBER="${{ env.issue_number }}"
           ISSUE_TITLE="${{ env.issue_title }}"
 
