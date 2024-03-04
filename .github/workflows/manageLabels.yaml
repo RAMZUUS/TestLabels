@@ -6,35 +6,61 @@ on:
     types: [converted]
 
 jobs:
-  add-labels:
+  create-branch-and-pull-request:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            // Get the priority and estimate from the card title
-            const title = context.issue.title;
-            const priorityMatch = title.match(/priority: (.*)/);
-            const estimateMatch = title.match(/estimate: (\d+)(?:(h|d|w))?/);
+      - name: Checkout Repository
+        uses: actions/checkout@v2
 
-            let priorityLabel = "";
-            if (priorityMatch) {
-              priorityLabel = priorityMatch[1];
-            }
+      - name: Extract Issue Information
+        run: |
+          echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_ENV
+          echo "issue_title=${{ github.event.issue.title }}" >> $GITHUB_ENV
 
-            let estimateLabel = "";
-            if (estimateMatch) {
-              const estimate = estimateMatch[1];
-              const unit = estimateMatch[2];
+      - name: Create Branch
+        run: |
+          ISSUE_NUMBER="${{ env.issue_number }}"
+          ISSUE_TITLE="${{ env.issue_title }}"
+          BRANCH_NAME="${ISSUE_NUMBER}_${ISSUE_TITLE// /_}"
+          BRANCH_NAME=$(echo $BRANCH_NAME | tr -d '[:punct:]')
+          echo "Branch Name: $BRANCH_NAME"
+          echo "BRANCH_NAME=${BRANCH_NAME}" >> $GITHUB_ENV
+          git checkout -b $BRANCH_NAME
+          git push origin $BRANCH_NAME
 
-              if (unit === "h") {
-                estimateLabel = `${estimate} hours`;
-              } else if (unit === "d") {
-                estimateLabel = `${estimate} days`;
-              } else if (unit === "w") {
-                estimateLabel = `${estimate} weeks`;
-              }
-            }
+      - name: Debug Branch Name
+        run: |
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
 
-            // Add labels to the issue
-            core.addLabels(context.issue.number, [priorityLabel, estimateLabel]);
+      - name: Link Branch to Issue
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d "{\"body\":\"This branch has been created for this issue. You can view the pull request [here]($GITHUB_SERVER_URL/${{ github.repository }}/pull/${{ env.BRANCH_NAME }}).\"}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ env.issue_number }}/comments"
+
+      - name: Move Properties to Issue Labels
+        run: |
+          # Fetch the specific card corresponding to the GitHub issue
+          echo "Repository: ${{github.repository}}"
+          CARD_ID=$(curl -s -H "Authorization: token ${{ secrets.PROJECT_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/issues/${{ env.issue_number }}" | jq -r '.number')
+          echo "Card Id: $CARD_ID"
+          
+          # Fetch the card details using the obtained card ID
+          CARD_RESPONSE=$(curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.PROJECT_TOKEN }}" "https://api.github.com/projects/columns/cards/$CARD_ID")
+          echo "Card Response:"
+          echo "$CARD_RESPONSE"
+          
+          # Extract priority and size from the card data
+          PRIORITY=$(echo "$CARD_RESPONSE" | jq -r '.note' | grep -oP 'Priority:\s*\K\S+')
+          SIZE=$(echo "$CARD_RESPONSE" | jq -r '.note' | grep -oP 'Size:\s*\K\S+')
+          
+          echo "Priority: $PRIORITY"
+          echo "Size: $SIZE"
+          
+          # Apply properties as labels to the issue
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.PROJECT_TOKEN }}" \
+            -d "{\"labels\":[\"priority:$PRIORITY\",\"size:$SIZE\"]}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ env.issue_number }}/labels"
