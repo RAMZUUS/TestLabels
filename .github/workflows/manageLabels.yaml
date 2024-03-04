@@ -1,44 +1,40 @@
-name: Manage Labels on Issue Creation
+name: Convert card to issue with labels
 
 on:
+  # Trigger the workflow when a card is converted to an issue
   issues:
-    types: [opened]
+    types: [converted]
 
 jobs:
-  manage-labels:
+  add-labels:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v2
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            // Get the priority and estimate from the card title
+            const title = context.issue.title;
+            const priorityMatch = title.match(/priority: (.*)/);
+            const estimateMatch = title.match(/estimate: (\d+)(?:(h|d|w))?/);
 
-      - name: Extract and Set Issue Labels
-        run: |
-          for param in priority estimate date; do
-            param_label="${param}_label"
-            echo "${param_label}=\${{ github.event.issue.labels | select(.name == '$param').name }}" >> $GITHUB_ENV
+            let priorityLabel = "";
+            if (priorityMatch) {
+              priorityLabel = priorityMatch[1];
+            }
 
-            param_value="${param_label^^}"
-            eval "PARAM_$param_value=\${$param_label}"
+            let estimateLabel = "";
+            if (estimateMatch) {
+              const estimate = estimateMatch[1];
+              const unit = estimateMatch[2];
 
-            if [ -n "${!param_value}" ]; then
-              echo "${param^} Label: ${!param_value}"
-              echo "${param}=${!param_value}" >> $GITHUB_ENV
-            else
-              echo "${param} label not found."
-            fi
-          done
+              if (unit === "h") {
+                estimateLabel = `${estimate} hours`;
+              } else if (unit === "d") {
+                estimateLabel = `${estimate} days`;
+              } else if (unit === "w") {
+                estimateLabel = `${estimate} weeks`;
+              }
+            }
 
-      - name: Add Labels to Issue
-        run: |
-          issue_number="${{ github.event.issue.number }}"
-          labels=()
-          for param in priority estimate date; do
-            param_value="${param^}"
-            labels+=("${{ env[$param] }}")
-          done
-          
-          curl -X PATCH \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -d "{\"labels\":[\"${labels[@]}\"]}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/$issue_number"
+            // Add labels to the issue
+            core.addLabels(context.issue.number, [priorityLabel, estimateLabel]);
