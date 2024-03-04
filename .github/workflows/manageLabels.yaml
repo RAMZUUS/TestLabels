@@ -16,7 +16,7 @@ jobs:
         run: |
           for label in priority estimate; do
             issue_label="${label}_label"
-            echo "${issue_label}=\${{ github.event.issue.labels | select(.name == '$label') | firstOrDefault(.color) }}" >> $GITHUB_ENV
+            echo "${issue_label}=\${{ github.event.issue.labels | select(.name == '$label').color }}" >> $GITHUB_ENV
 
             issue_value="${issue_label^^}"
             eval "ISSUE_$issue_value=\${$issue_label}"
@@ -35,17 +35,10 @@ jobs:
           labels=()
           for param in priority estimate; do
             param_value="${param^}"
-            labels+=("${{ env.$param }}")
+            labels+=("${{ env[$param] }}")
           done
           
           curl -X PATCH \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -d "{\"labels\":[\"${labels[@]}\"]}" \
             "https://api.github.com/repos/${{ github.repository }}/issues/$issue_number"
-
-      - name: Move Properties to Issue Labels
-        run: |
-          COLUMN_ID="your_column_id"
-          CARDS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/projects/columns/$COLUMN_ID/cards")
-          echo "Cards Response:"
-          echo "$CARDS_RESPONSE"
