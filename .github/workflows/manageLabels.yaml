@@ -14,18 +14,18 @@ jobs:
 
       - name: Extract and Set Issue Labels
         run: |
-          for label in priority estimate; do
-            issue_label="${label}_label"
-            echo "${issue_label}=\${{ github.event.issue.labels | select(.name == '$label').color }}" >> $GITHUB_ENV
+          for param in priority estimate date; do
+            param_label="${param}_label"
+            echo "${param_label}=\${{ github.event.issue.labels | select(.name == '$param').name }}" >> $GITHUB_ENV
 
-            issue_value="${issue_label^^}"
-            eval "ISSUE_$issue_value=\${$issue_label}"
+            param_value="${param_label^^}"
+            eval "PARAM_$param_value=\${$param_label}"
 
-            if [ -n "${!issue_value}" ]; then
-              echo "${label^} Label: ${!issue_value}"
-              echo "${label}=${!issue_value}" >> $GITHUB_ENV
+            if [ -n "${!param_value}" ]; then
+              echo "${param^} Label: ${!param_value}"
+              echo "${param}=${!param_value}" >> $GITHUB_ENV
             else
-              echo "${label} label not found."
+              echo "${param} label not found."
             fi
           done
 
@@ -33,7 +33,7 @@ jobs:
         run: |
           issue_number="${{ github.event.issue.number }}"
           labels=()
-          for param in priority estimate; do
+          for param in priority estimate date; do
             param_value="${param^}"
             labels+=("${{ env[$param] }}")
           done
