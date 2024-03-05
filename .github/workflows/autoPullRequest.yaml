@@ -13,10 +13,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check Existing Pull Request
+      - name: Check Existing Pull Request with matching title
         id: check_pr
         run: |
-          PR_EXISTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/pulls?state=open" | jq -r --arg BRANCH "$GITHUB_REF" '.[] | select(.head.ref == $BRANCH) | .html_url')
+          PR_EXISTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/pulls?state=open" | jq -r --arg BRANCH "$GITHUB_REF" --arg TITLE "Automatically created pull request" '.[] | select((.head.ref == $BRANCH) and (.title == $TITLE)) | .html_url')
 
           if [ -n "$PR_EXISTS" ]; then
             echo "Pull Request already exists: $PR_EXISTS"
@@ -24,6 +24,10 @@ jobs:
           else
             echo "::set-output name=pr_exists::false"
           fi
+
+      - name: Log PR status (Optional)
+        if: steps.check_pr.outputs.pr_exists == 'true'
+        run: echo "Pull request already exists, skipping creation."
 
       - name: Create Pull Request
         if: steps.check_pr.outputs.pr_exists != 'true'
@@ -34,3 +38,14 @@ jobs:
           title: Automatically created pull request
           commit-message: Automatic pull request creation
           base: main
+
+      - name: Notify pull request creation (Optional)
+        if: steps.create_pr.outputs.pull_request_url
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+          custom_payload: |
+            {
+              "text": "Pull request created: *{{ steps.create_pr.outputs.pull_request_url }}*"
+            }
