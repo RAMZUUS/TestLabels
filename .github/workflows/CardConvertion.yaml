@@ -12,4 +12,4 @@ jobs:
         run: |
           echo "Action: ${{ github.event.action }}"
           echo "Project Card: ${{ toJson(github.event.project_card) }}"
-          echo "Action: ${{github.event.action}}, Card: ${{toJson(github.event.project_card)}}"
+      - name: Extract Issue Information
