@@ -13,24 +13,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check Existing Pull Request for Current Branch
+      - name: Check if pull request exists
         id: check_pr
         run: |
-          BRANCH_NAME=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
-          PR_EXISTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/pulls?state=open" | jq -r --arg BRANCH "$BRANCH_NAME" '.[] | select(.head.ref == $BRANCH) | .html_url')
+          # Extract and store the PR count in a variable
+          PR_COUNT=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${{ github.ref }}&state=open" | jq '. | length')
 
-          if [ -n "$PR_EXISTS" ]; then
-            echo "Pull Request already exists for branch $BRANCH_NAME: $PR_EXISTS"
-            echo "::set-output name=pr_exists::true"
-          else
-            echo "::set-output name=pr_exists::false"
-          fi
-
-      - name: Stop Workflow if PR Exists
-        if: steps.check_pr.outputs.pr_exists == 'true'
-        run: exit 1
+          # Echo and store the PR count with a descriptive message
+          echo "Number of open pull requests for this branch: $PR_COUNT"
+          echo "PR_COUNT=$PR_COUNT" >> $GITHUB_OUTPUT
 
       - name: Create Pull Request
+        if: ${{ steps.check_pr.outputs.PR_COUNT }} == 0
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -38,14 +32,3 @@ jobs:
           title: Automatically created pull request
           commit-message: Automatic pull request creation
           base: main
-
-      - name: Notify pull request creation (Optional)
-        if: steps.create_pr.outputs.pull_request_url
-        uses: 8398a7/action-slack@v3
-        with:
-          status: custom
-          fields: repo,message,commit,author,action,eventName,ref,workflow
-          custom_payload: |
-            {
-              "text": "Pull request created: *{{ steps.create_pr.outputs.pull_request_url }}*"
-            }
