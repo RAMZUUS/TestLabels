@@ -13,24 +13,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check Existing Pull Request with matching title
+      - name: Check Existing Pull Request for Current Branch
         id: check_pr
         run: |
-          PR_EXISTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/pulls?state=open" | jq -r --arg BRANCH "$GITHUB_REF" --arg TITLE "Automatically created pull request" '.[] | select((.head.ref == $BRANCH) and (.title == $TITLE)) | .html_url')
+          BRANCH_NAME=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
+          PR_EXISTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/pulls?state=open" | jq -r --arg BRANCH "$BRANCH_NAME" '.[] | select(.head.ref == $BRANCH) | .html_url')
 
           if [ -n "$PR_EXISTS" ]; then
-            echo "Pull Request already exists: $PR_EXISTS"
+            echo "Pull Request already exists for branch $BRANCH_NAME: $PR_EXISTS"
             echo "::set-output name=pr_exists::true"
           else
             echo "::set-output name=pr_exists::false"
           fi
 
-      - name: Log PR status (Optional)
+      - name: Stop Workflow if PR Exists
         if: steps.check_pr.outputs.pr_exists == 'true'
-        run: echo "Pull request already exists, skipping creation."
+        run: exit 1
 
       - name: Create Pull Request
-        if: steps.check_pr.outputs.pr_exists != 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
